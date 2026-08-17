@@ -1,57 +1,52 @@
+import 'dart:math';
+
 import 'package:flame/components.dart';
-import 'package:flame/collisions.dart';
-import 'package:flame_audio/flame_audio.dart';
 import 'package:flutter/material.dart';
 
-import 'player.dart';
+import 'fighter.dart';
 
-class EnemyBot extends PositionComponent with HasGameRef, CollisionCallbacks {
-  final Player playerRef;
-  Vector2 velocity = Vector2.zero();
-  double speed = 120;
-  int maxHp = 100;
-  int hp = 100;
+/// Bot ennemi très simple pour le mode Entraînement.
+///
+/// Avant : infligeait des dégâts à chaque frame dès qu'il était à portée
+/// du joueur (donc ~60 fois par seconde), ce qui tuait le joueur quasi
+/// instantanément. Corrigé : le bot déclenche `startAttack()`, qui respecte
+/// désormais le cooldown défini dans [Fighter] — un seul coup toutes les
+/// ~0.5s, comme le joueur.
+class EnemyBot extends Fighter {
+  EnemyBot({required Vector2 position})
+      : super(position: position, color: const Color(0xFFFF4D8D));
 
-  // placeholder animation colors
-  final List<Color> _frames = [Colors.red, Colors.orange, Colors.deepOrange];
-  double _frameTimer = 0;
-  int _frameIndex = 0;
+  final Random _random = Random();
+  double _decisionTimer = 0;
 
-  late RectangleComponent _body;
-
-  EnemyBot(this.playerRef) : super(size: Vector2(50, 80));
-
-  @override
-  Future<void> onLoad() async {
-    add(RectangleHitbox());
-    _body = RectangleComponent(size: size, paint: Paint()..color = _frames[0]);
-    add(_body);
-  }
+  static const double _engageDistance = 95;
+  static const double _decisionInterval = 0.25;
 
   @override
   void update(double dt) {
-    // simple AI: move toward player if far, else attack
-    final dir = (playerRef.position - position);
-    if (dir.x.abs() > 70) {
-      position.x += speed * dt * (dir.x.sign);
+    _decisionTimer -= dt;
+    if (_decisionTimer <= 0) {
+      _decisionTimer = _decisionInterval;
+      _decide();
+    }
+    super.update(dt);
+  }
+
+  void _decide() {
+    final player = gameRef.player;
+    final distance = (position.x - player.position.x).abs();
+
+    if (distance > _engageDistance) {
+      moveDir = position.x < player.position.x ? 1 : -1;
     } else {
-      // attack
-      if ((playerRef.position - position).length < 80) {
-        playerRef.hp = (playerRef.hp - 8).clamp(0, playerRef.maxHp) as int;
-        try {
-          FlameAudio.play('hit.wav');
-        } catch (_) {}
+      moveDir = 0;
+      if (attackCooldown <= 0) {
+        startAttack();
       }
     }
 
-    // update placeholder animation
-    _frameTimer += dt;
-    if (_frameTimer > 0.12) {
-      _frameTimer = 0;
-      _frameIndex = (_frameIndex + 1) % _frames.length;
-      _body.paint.color = _frames[_frameIndex];
+    if (onGround && _random.nextDouble() < 0.06) {
+      jump();
     }
-
-    super.update(dt);
   }
 }

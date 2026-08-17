@@ -1,153 +1,209 @@
 import 'package:flutter/material.dart';
-import '../game/arena_game.dart';
-import '../components/player.dart';
-import '../components/enemy_bot.dart';
 
-class ControlsOverlay extends StatefulWidget {
+import '../game/arena_game.dart';
+
+class ControlsOverlay extends StatelessWidget {
   final ArenaGame game;
   const ControlsOverlay({required this.game, super.key});
 
   @override
-  State<ControlsOverlay> createState() => _ControlsOverlayState();
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Stack(
+        children: [
+          // --- Barres de vie : toujours visibles ---
+          Positioned(
+            top: 20,
+            left: 20,
+            right: 20,
+            child: Row(
+              children: [
+                Expanded(
+                  child: _HealthBar(
+                    label: 'JOUEUR',
+                    notifier: game.playerHealth,
+                    color: const Color(0xFF31E6D8),
+                    alignEnd: false,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _HealthBar(
+                    label: 'BOT',
+                    notifier: game.enemyHealth,
+                    color: const Color(0xFFFF4D8D),
+                    alignEnd: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // --- Déplacement / saut : toujours visibles ---
+          Positioned(
+            left: 10,
+            bottom: 24,
+            child: Row(
+              children: [
+                _HoldButton(
+                  icon: Icons.arrow_left,
+                  onPressStart: () => game.player.moveDir = -1,
+                  onPressEnd: () {
+                    if (game.player.moveDir == -1) game.player.moveDir = 0;
+                  },
+                ),
+                const SizedBox(width: 10),
+                _HoldButton(
+                  icon: Icons.arrow_right,
+                  onPressStart: () => game.player.moveDir = 1,
+                  onPressEnd: () {
+                    if (game.player.moveDir == 1) game.player.moveDir = 0;
+                  },
+                ),
+                const SizedBox(width: 10),
+                _HoldButton(
+                  icon: Icons.arrow_upward,
+                  color: Colors.blueGrey,
+                  onPressStart: () => game.player.jump(),
+                ),
+              ],
+            ),
+          ),
+
+          // --- Attaques : toujours visibles ---
+          Positioned(
+            right: 10,
+            bottom: 24,
+            child: Column(
+              children: [
+                ElevatedButton(
+                  onPressed: () => game.player.startAttack(),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  child: const Text('Attaque'),
+                ),
+                const SizedBox(height: 10),
+                ElevatedButton(
+                  onPressed: null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange.withValues(alpha: 0.35),
+                  ),
+                  child: const Text('Lourde (bientôt)'),
+                ),
+              ],
+            ),
+          ),
+
+          // --- Écran de fin : SEUL ce bloc est conditionnel ---
+          ValueListenableBuilder<GameStatus>(
+            valueListenable: game.status,
+            builder: (context, status, _) {
+              if (status == GameStatus.playing) {
+                return const SizedBox.shrink();
+              }
+              final won = status == GameStatus.victory;
+              return Positioned.fill(
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.7),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          won ? 'VICTOIRE !' : 'DÉFAITE',
+                          style: TextStyle(
+                            color: won ? Colors.greenAccent : Colors.redAccent,
+                            fontSize: 36,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: game.restart,
+                          child: const Text('Rejouer'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _ControlsOverlayState extends State<ControlsOverlay> {
-  bool left = false;
-  bool right = false;
+class _HealthBar extends StatelessWidget {
+  const _HealthBar({
+    required this.label,
+    required this.notifier,
+    required this.color,
+    required this.alignEnd,
+  });
+
+  final String label;
+  final ValueNotifier<double> notifier;
+  final Color color;
+  final bool alignEnd;
 
   @override
   Widget build(BuildContext context) {
-    Player? safePlayer;
-    EnemyBot? safeEnemy;
-    try {
-      safePlayer = widget.game.player;
-    } catch (_) {
-      safePlayer = null;
-    }
-    try {
-      safeEnemy = widget.game.enemy;
-    } catch (_) {
-      safeEnemy = null;
-    }
-
-    return Stack(
-      children: [
-        Positioned(
-          left: 10,
-          bottom: 10,
-          child: Row(
-            children: [
-              GestureDetector(
-                onTapDown: (_) => setState(() => left = true),
-                onTapUp: (_) => setState(() => left = false),
-                onTapCancel: () => setState(() => left = false),
-                child: Container(
-                  width: 70,
-                  height: 70,
-                  color: left ? Colors.grey[700] : Colors.grey[900],
-                  child: const Icon(Icons.arrow_left, color: Colors.white),
-                ),
-              ),
-              const SizedBox(width: 10),
-              GestureDetector(
-                onTapDown: (_) => setState(() => right = true),
-                onTapUp: (_) => setState(() => right = false),
-                onTapCancel: () => setState(() => right = false),
-                child: Container(
-                  width: 70,
-                  height: 70,
-                  color: right ? Colors.grey[700] : Colors.grey[900],
-                  child: const Icon(Icons.arrow_right, color: Colors.white),
-                ),
-              ),
-              const SizedBox(width: 10),
-              GestureDetector(
-                onTap: () => safePlayer?.jump(),
-                child: Container(
-                  width: 70,
-                  height: 70,
-                  color: Colors.blueGrey,
-                  child: const Icon(Icons.arrow_upward, color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        Positioned(
-          right: 10,
-          bottom: 10,
-          child: Column(
-            children: [
-              ElevatedButton(
-                onPressed: () => safePlayer != null && safeEnemy != null ? safePlayer.attack(safeEnemy) : null,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                child: const Text('Atk'),
-              ),
-              const SizedBox(height: 10),
-              ElevatedButton(
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-                child: const Text('Heavy'),
-              ),
-            ],
-          ),
-        ),
-
-        // HP bars
-        Positioned(
-          top: 30,
-          left: 20,
-          child: SizedBox(
-            width: 200,
-            child: Column(children: [
-              _hpBar('Player', safePlayer?.hp ?? 0, safePlayer?.maxHp ?? 100),
-              const SizedBox(height: 6),
-              _hpBar('Enemy', safeEnemy?.hp ?? 0, safeEnemy?.maxHp ?? 100),
-            ]),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _hpBar(String label, int hp, int maxHp) {
-    final pct = hp / maxHp;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment:
+          alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
-        Text('$label : $hp / $maxHp', style: const TextStyle(color: Colors.white)),
-        Container(
-          width: 200,
-          height: 12,
-          decoration: BoxDecoration(border: Border.all(color: Colors.white)),
-          child: FractionallySizedBox(
-            alignment: Alignment.centerLeft,
-            widthFactor: pct.clamp(0.0, 1.0),
-            child: Container(color: Colors.red),
-          ),
+        Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
+        const SizedBox(height: 4),
+        ValueListenableBuilder<double>(
+          valueListenable: notifier,
+          builder: (context, health, _) {
+            final pct = (health / 100).clamp(0.0, 1.0);
+            return Container(
+              height: 12,
+              decoration: BoxDecoration(border: Border.all(color: Colors.white)),
+              child: Align(
+                alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
+                child: FractionallySizedBox(
+                  widthFactor: pct,
+                  child: Container(color: color),
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
   }
+}
+
+class _HoldButton extends StatelessWidget {
+  const _HoldButton({
+    required this.icon,
+    required this.onPressStart,
+    this.onPressEnd,
+    this.color,
+  });
+
+  final IconData icon;
+  final VoidCallback onPressStart;
+  final VoidCallback? onPressEnd;
+  final Color? color;
 
   @override
-  void initState() {
-    super.initState();
-    // periodic movement application
-    WidgetsBinding.instance.addPostFrameCallback((_) => _tick());
-  }
-
-  void _tick() async {
-    while (mounted) {
-      final dt = 1 / 60;
-      try {
-        final p = widget.game.player;
-        if (left) p.moveLeft(dt);
-        if (right) p.moveRight(dt);
-      } catch (_) {}
-      await Future.delayed(const Duration(milliseconds: 16));
-      setState(() {});
-    }
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => onPressStart(),
+      onTapUp: (_) => onPressEnd?.call(),
+      onTapCancel: () => onPressEnd?.call(),
+      child: Container(
+        width: 70,
+        height: 70,
+        color: color ?? Colors.grey[900],
+        child: Icon(icon, color: Colors.white),
+      ),
+    );
   }
 }
